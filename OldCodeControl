@@ -1,0 +1,203 @@
+close all
+clear all
+clearvars;
+
+% Presentation Parameters
+stereoMode = 1;            %3D shutter glasses
+
+% Input filename
+filename = input('Please input your initials and the session number (e.g. zz1): ', 's');
+%=====================================
+
+% ===== check if the file already exists =====
+filename = strcat(filename, '_ctrl1');
+checkFile = strcat(filename, '.csv');
+checkFileGo = true;
+while checkFileGo == true
+    if isfile(checkFile)        
+        disp('The file already exist!');
+        filename = input('Please input your initials and the session number (e.g. zz1): ', 's');
+        filename = strcat(filename, '_ctrl1');
+        checkFile = strcat(filename, '.csv');
+    else
+        checkFileGo = false;
+        
+    end
+end
+% ============================================
+
+% eye = input('Please choose which eye is used (1 for left eye, 2 for right eye): ');
+% 
+% checkEyeGo = true;
+% while checkEyeGo == true
+%     if eye == 1 || eye == 2        
+%         checkEyeGo = false;
+%         
+%     else
+%         disp('Invalid Number!');
+%         eye = input('Please choose which eye is used (1 for left eye, 2 for right eye): ');
+%     end
+% end
+
+% ========== setup Psytoolbox ==========
+PsychDefaultSetup(2);
+Screen('Preference', 'SkipSyncTests', 0);
+InitializeMatlabOpenGL;
+
+screens = Screen('Screens');
+screenNumber = max(screens);
+black = BlackIndex(screenNumber);
+white = WhiteIndex(screenNumber);
+ResponsePixx('Open'); % ResponsePixx botton box Initial Setting
+[window, windowRect] = PsychImaging('OpenWindow', screenNumber, 0.63, [], [], 2, stereoMode);
+% PsychImaging('PrepareConfiguration');
+% PsychImaging('AddTask',  'General', 'UseDataPixx');
+[oldmaximumvalue, oldclampcolors, oldapplyToDoubleInputMakeTexture] = Screen('ColorRange', window, 255, 0, 0);
+PsychImaging('PrepareConfiguration');
+PsychImaging('AddTask', 'LeftView', 'StereoCrosstalkReduction', 'SubtractOther', 1);
+PsychImaging('AddTask', 'RightView', 'StereoCrosstalkReduction', 'SubtractOther', 0);
+% Screen('BlendFunction', window, 'GL_SRC_ALPHA', 'GL_ONE_MINUS_SRC_ALPHA');
+topPriorityLevel = MaxPriority(window);
+Priority(topPriorityLevel);
+
+% ======================================
+
+
+% ===== set parameters by calling function "Parameters_generator" =====
+[s.A, s.respMat, s.L_bg, s.L_fr, s.L_st, s.L_stIn, ...
+    s.L_stOut, s.baseRect, s.color, s.frameRect, s.frameColor, ...
+    s.penWidthPixels, s.screenYpixels, s.xCenter, s.yCenter, s.ntrial] =...
+    Parameters_ctrl1_monocular_generator(window, windowRect);
+% =====================================================================
+
+% %==========Kb setup==========
+% leftKey = KbName('LeftArrow');
+% rightKey = KbName('RightArrow');
+% escapeKey = KbName('ESCAPE');
+% upKey = KbName('UpArrow');
+% %============================
+
+[xCenter, yCenter] = RectCenter(windowRect);
+bigBGRect = CenterRectOnPointd([0 0 2048 1152], xCenter, yCenter);
+
+HideCursor;
+
+stateID = 0;
+j = 1;
+while j <= s.ntrial
+    i = 1;
+    A = Shuffle(s.A);
+    %     A = s.A;
+    
+    go = true;
+    
+    while go == true % this while loop is used for KbStroke waiting
+        switch stateID
+            case 0 % show the text
+                Screen('SelectStereoDrawBuffer', window, 0);
+                Screen('FillRect', window, 0, bigBGRect);
+                DrawFormattedText(window, 'Choose a brighter side with "left arrow" and "right arrow" \n\n Press any key to begin', 'center', 'center', 255);
+                Screen('SelectStereoDrawBuffer', window, 1);
+                Screen('FillRect', window, 0, bigBGRect);
+                DrawFormattedText(window, 'Choose a brighter side with "left arrow" and "right arrow" \n\n Press any key to begin', 'center', 'center', 255);
+                Screen('Flip', window);
+                ResponsePixx('StartNow',1, [0,0,0,0,1],1); % button element = [Red, Yellow, Green, Blue, White]
+                while 1 %%Must click button to continue
+                    Buttons = ResponsePixx('GetButtons');
+                    if 1 == Buttons(5) % press button 5 to continue
+                        clear Buttons
+                        ResponsePixx('StartNow',1, [0,0,0,0,0],1); % button element = [Red, Yellow, Green, Blue, White]
+                        break
+                    end
+                end
+                stateID = 1;
+                pause(1);
+                
+            case 1 % prepare and present a stimulus by calling function "COC_generator"
+                COC_ctrl1_monocular_generator(A(i), s.L_stIn, s.L_stOut, s.L_st,...
+                    s.baseRect, s.frameRect, s.xCenter, s.yCenter, window, ...
+                    s.color, s.penWidthPixels, s.L_bg, s.L_fr, s.frameColor, bigBGRect);
+                stateID = 2;
+                
+            case 2 % record reponses with KbStroke
+                %                 KbHalt = true;
+                %                 while KbHalt == true
+                %                     [KeyIsDown, secs, keyCode] = KbCheck;
+                %                     % if subjects stroke Left Arrow, the response will be 0
+                %                     % if subjects stroke Right Arrow, the response will be 1
+                %                     % if they stroke ESCAPE, Screen Close All
+                %                     if keyCode(leftKey)
+                %                         response = 0;
+                %                         KbHalt = false;
+                %                     elseif keyCode(rightKey)
+                %                         response = 1;
+                %                         KbHalt = false;
+                %                     elseif keyCode(upKey)
+                %                         response = 2;
+                %                         KbHalt = false;
+                %                     elseif keyCode(escapeKey)
+                %                         sca;
+                % %                         xlswrite(filename, s.respMat'); % put results in an excel file
+                %                         return
+                %                     end
+                %                 end
+                %                 % record the results in a matrix
+                %                 s.respMat(1, i + length(A) * (j - 1)) = A(i);
+                %                 s.respMat(2, i + length(A) * (j - 1)) = response;
+                %
+                %                 stateID = 3;
+                ResponsePixx('StartNow',1, [1,0,1,1,0],1); % button element = [Red, Yellow, Green, Blue, White]
+                while 1 %%Must click button to continue
+                    Buttons = ResponsePixx('GetButtons');
+                    if 1 == Buttons(1) % press button 5 to continue
+                        res = 1;
+                        s.respMat(1, i + length(A) * (j - 1)) = A(i);
+                        s.respMat(2, i +  length(A) * (j - 1)) = res;
+                        clear Buttons
+                        ResponsePixx('StartNow',1, [0,0,0,0,0],1); % button element = [Red, Yellow, Green, Blue, White]
+                        stateID = 3;
+                        break
+                        
+                    elseif 1 == Buttons(3) % press button 5 to continue
+                        res = 0;
+                        s.respMat(1, i + length(A) * (j - 1)) = A(i);
+                        s.respMat(2, i +  length(A) * (j - 1)) = res;
+                        clear Buttons
+                        ResponsePixx('StartNow',1, [0,0,0,0,0],1); % button element = [Red, Yellow, Green, Blue, White]
+                        stateID = 3;
+                        break
+                    elseif 1 == Buttons(4)
+                        res = 2;
+                        s.respMat(1, i + length(A) * (j - 1)) = A(i);
+                        s.respMat(2, i +  length(A) * (j - 1)) = res;
+                        clear Buttons
+                        ResponsePixx('StartNow',1, [0,0,0,0,0],1); % button element = [Red, Yellow, Green, Blue, White]
+                        stateID = 3;
+                        break
+                    end
+                end
+                
+            case 3 % screen turns black, and pause 1 sec
+                Screen('SelectStereoDrawBuffer', window, 0);
+                Screen('FillRect', window, 0, bigBGRect);
+                Screen('SelectStereoDrawBuffer', window, 1);
+                Screen('FillRect', window, 0, bigBGRect);
+                Screen('Flip', window);
+                pause(1);
+                i = i+1;
+                stateID = 4;
+                
+            case 4 % check if one trial is finished
+                if i > length(A)
+                    go = false;
+                end
+                
+                stateID = 1;
+        end
+    end
+    j = j + 1;
+end
+
+sca;
+% disp(respMat);
+xlswrite(filename, s.respMat'); % put results in an excel file
